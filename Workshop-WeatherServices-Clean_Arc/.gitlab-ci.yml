@@ -1,0 +1,40 @@
+variables:
+  KUBE_CONTEXT: KoonpheemKungZ/k8s-connection:k8s-connection 
+
+stages:
+  - build
+  - deploy
+
+# before_script:
+#   - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+
+build:
+  stage: build
+  image: docker:25.0.0-beta.3-dind-alpine3.19
+  services:
+    - name: docker:25.0.0-beta.3-dind-alpine3.19
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - export TAG=${CI_COMMIT_REF_NAME} # ใช้ CI_COMMIT_REF_NAME เพื่อป้องกันตัวเลขที่ไม่ได้รับการยอมรับใน TAG
+  script:
+    - echo "TAG="$CI_REGISTRY_IMAGE:$TAG
+    - docker build --pull -t $CI_REGISTRY_IMAGE:$TAG -f Dockerfile .
+    - docker info
+    - docker push $CI_REGISTRY_IMAGE:$TAG
+  # when: manual
+  after_script:
+    - docker logout $CI_REGISTRY
+
+deploy:
+  stage: deploy
+  image:
+    name: bitnami/kubectl:latest
+  script:
+    - kubectl config use-context $KUBE_CONTEXT
+    - kubectl get pods
+    - kubectl get nodes -o wide
+    - echo "Deployment CICD-Test to K8S"
+    - ls $CI_PROJECT_DIR/k8s_config
+    - kubectl apply -f $CI_PROJECT_DIR/.
+    - kubectl get pods
+    - kubectl get svc
